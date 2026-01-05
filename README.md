@@ -16,6 +16,7 @@ A self-hosted web application for monitoring Reddit accounts. Track karma change
 - **Scheduled Monitoring** - Configurable monitoring intervals
 
 ## Screenshots
+<img width="1111" height="324" alt="image" src="https://github.com/user-attachments/assets/a8f3c563-f2b2-41b2-b148-6cb6a11d2c90" />
 
 <details>
 <summary>Click to view screenshots</summary>
