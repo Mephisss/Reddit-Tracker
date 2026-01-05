@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>u/{{ user.username }} - Reddit Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'reddit-orange': '#FF4500',
+                        'reddit-dark': '#1A1A1B',
+                        'reddit-darker': '#121212',
+                        'reddit-border': '#343536',
+                        'reddit-text': '#D7DADC',
+                        'reddit-muted': '#818384',
+                        'gold': '#C9B896'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+        body { font-family: 'Space Mono', monospace; }
+        .card-image { aspect-ratio: 1; object-fit: cover; }
+    </style>
+</head>
+<body class="bg-reddit-darker text-reddit-text min-h-screen">
+    <nav class="bg-reddit-dark border-b border-reddit-border px-6 py-4 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <a href="/" class="text-2xl font-bold text-white hover:text-reddit-orange transition-colors">
+                <span class="text-reddit-orange">Reddit</span> Tracker
+            </a>
+            <div class="flex items-center gap-4">
+                <span class="text-reddit-muted">u/{{ user.username }}</span>
+                <a href="https://reddit.com/user/{{ user.username }}" target="_blank" class="text-reddit-orange hover:underline text-sm">
+                    View on Reddit →
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <!-- User Stats Header -->
+        <section class="bg-reddit-dark border border-reddit-border rounded-lg p-8 mb-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div class="flex items-center gap-6">
+                    <div class="w-20 h-20 bg-reddit-orange rounded-full flex items-center justify-center text-white font-bold text-3xl">
+                        {{ user.username[0].upper() }}
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold text-white">u/{{ user.username }}</h1>
+                        <p class="text-reddit-muted">Tracked since {{ user.timestamp[:10] }} • {{ snapshot_count }} snapshots</p>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-8 text-center">
+                    <div>
+                        <p class="text-4xl font-bold text-gold">{{ "{:,}".format(user.total_karma or 0) }}</p>
+                        <p class="text-sm text-reddit-muted uppercase">Total Karma</p>
+                    </div>
+                    <div>
+                        <p class="text-4xl font-bold text-reddit-text">{{ "{:,}".format(user.post_karma or 0) }}</p>
+                        <p class="text-sm text-reddit-muted uppercase">Post Karma</p>
+                    </div>
+                    <div>
+                        <p class="text-4xl font-bold text-reddit-text">{{ "{:,}".format(user.comment_karma or 0) }}</p>
+                        <p class="text-sm text-reddit-muted uppercase">Comment Karma</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Karma Over Time -->
+            <div class="bg-reddit-dark border border-reddit-border rounded-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-bold text-white">Karma Over Time</h2>
+                    <div class="flex items-center gap-2">
+                        <select id="karma-days" class="bg-reddit-darker border border-reddit-border rounded px-3 py-1 text-sm text-reddit-text">
+                            <option value="0.041667">1 hour</option>
+                            <option value="0.125">3 hours</option>
+                            <option value="0.5">12 hours</option>
+                            <option value="1">1 day</option>
+                            <option value="3">3 days</option>
+                            <option value="7">7 days</option>
+                            <option value="30" selected>30 days</option>
+                            <option value="90">90 days</option>
+                            <option value="365">1 year</option>
+                            <option value="custom">Custom range...</option>
+                        </select>
+                        <button id="custom-range-btn" class="hidden bg-reddit-orange hover:bg-opacity-80 text-white px-3 py-1 rounded text-sm transition-colors">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Custom Date Range Inputs (Hidden by default) -->
+                <div id="custom-range-inputs" class="hidden mb-4 p-3 bg-reddit-darker border border-reddit-border rounded">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-reddit-muted mb-1">From</label>
+                            <input type="datetime-local" id="date-from" class="w-full bg-reddit-dark border border-reddit-border rounded px-2 py-1 text-sm text-reddit-text">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-reddit-muted mb-1">To</label>
+                            <input type="datetime-local" id="date-to" class="w-full bg-reddit-dark border border-reddit-border rounded px-2 py-1 text-sm text-reddit-text">
+                        </div>
+                    </div>
+                </div>
+                
+                <canvas id="karmaChart" height="200"></canvas>
+            </div>
+
+            <!-- Subreddit Breakdown -->
+            <div class="bg-reddit-dark border border-reddit-border rounded-lg p-6">
+                <h2 class="text-xl font-bold text-white mb-4">Top Subreddits</h2>
+                <canvas id="subredditChart" height="200"></canvas>
+            </div>
+
+            <!-- Karma Changes -->
+            <div class="bg-reddit-dark border border-reddit-border rounded-lg p-6">
+                <h2 class="text-xl font-bold text-white mb-4">Karma Changes (7 days)</h2>
+                <canvas id="changesChart" height="200"></canvas>
+            </div>
+
+            <!-- Posts Over Time -->
+            <div class="bg-reddit-dark border border-reddit-border rounded-lg p-6">
+                <h2 class="text-xl font-bold text-white mb-4">Posting Activity</h2>
+                <canvas id="postsChart" height="200"></canvas>
+            </div>
+        </section>
+
+        <!-- Posts Grid (Cards) -->
+        <section>
+            <h2 class="text-2xl font-bold text-white mb-6">Posts ({{ posts|length }})</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {% for post in posts %}
+                <div class="bg-reddit-dark border border-reddit-border rounded-lg overflow-hidden hover:border-reddit-orange transition-colors group">
+                    <!-- Image -->
+                    {% if post.local_image_path %}
+                    <div class="aspect-square overflow-hidden bg-reddit-darker">
+                        <img src="/static/{{ post.local_image_path }}" 
+                             alt="{{ post.title }}" 
+                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    </div>
+                    {% else %}
+                    <div class="aspect-square bg-reddit-darker flex items-center justify-center">
+                        <span class="text-reddit-muted text-sm">No image</span>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Card Content -->
+                    <div class="p-4">
+                        <h3 class="font-bold text-white text-sm line-clamp-2 mb-2 group-hover:text-reddit-orange transition-colors">
+                            {{ post.title }}
+                        </h3>
+                        
+                        <div class="flex items-center justify-between text-xs text-reddit-muted mb-3">
+                            <span>r/{{ post.subreddit }}</span>
+                            <span>{{ post.created_utc[:10] if post.created_utc else 'Unknown' }}</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-1">
+                                <span class="text-gold font-bold">{{ "{:,}".format(post.score or 0) }}</span>
+                                <span class="text-reddit-muted text-xs">points</span>
+                            </div>
+                            <div class="flex items-center gap-1 text-reddit-muted text-xs">
+                                <span>{{ post.num_comments or 0 }}</span>
+                                <span>comments</span>
+                            </div>
+                        </div>
+                        
+                        {% if post.permalink %}
+                        <a href="https://reddit.com{{ post.permalink }}" 
+                           target="_blank" 
+                           class="mt-3 block text-center text-xs text-reddit-muted hover:text-reddit-orange transition-colors">
+                            View on Reddit →
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            {% if not posts %}
+            <div class="text-center py-12 text-reddit-muted">
+                <p>No posts tracked yet</p>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <footer class="border-t border-reddit-border mt-12 py-4">
+        <p class="text-center text-reddit-muted text-sm">
+            Reddit Tracker • Last updated: {{ user.timestamp }} • 
+            <a href="https://github.com/yourusername/reddit-tracker" class="hover:text-reddit-orange transition-colors">GitHub</a>
+        </p>
+    </footer>
+
+    <script>
+        const username = '{{ user.username }}';
+        
+        // Chart.js default styling
+        Chart.defaults.color = '#818384';
+        Chart.defaults.borderColor = '#343536';
+        
+        // Karma Over Time Chart
+        let karmaChart;
+        async function loadKarmaChart(days = 30, customFrom = null, customTo = null) {
+            let url = `/api/karma/${username}`;
+            
+            if (customFrom && customTo) {
+                // Use custom range
+                url += `?from=${customFrom}&to=${customTo}`;
+            } else {
+                // Use days parameter
+                url += `?days=${days}`;
+            }
+            
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            const ctx = document.getElementById('karmaChart').getContext('2d');
+            
+            if (karmaChart) karmaChart.destroy();
+            
+            // Format labels based on time range
+            let formattedLabels;
+            if (customFrom && customTo) {
+                // For custom ranges, determine format based on duration
+                const duration = (new Date(customTo) - new Date(customFrom)) / (1000 * 60 * 60 * 24);
+                if (duration <= 1) {
+                    formattedLabels = data.labels.map(l => l.slice(11, 16));
+                } else if (duration <= 7) {
+                    formattedLabels = data.labels.map(l => l.slice(5, 10) + ' ' + l.slice(11, 16));
+                } else {
+                    formattedLabels = data.labels.map(l => l.slice(5, 10));
+                }
+            } else if (days <= 1) {
+                // For 1 day or less, show time (HH:MM)
+                formattedLabels = data.labels.map(l => l.slice(11, 16));
+            } else if (days <= 7) {
+                // For up to 7 days, show date and time (MM-DD HH:MM)
+                formattedLabels = data.labels.map(l => l.slice(5, 10) + ' ' + l.slice(11, 16));
+            } else {
+                // For longer periods, just show date (MM-DD)
+                formattedLabels = data.labels.map(l => l.slice(5, 10));
+            }
+            
+            karmaChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: formattedLabels,
+                    datasets: [
+                        {
+                            label: 'Total Karma',
+                            data: data.total_karma,
+                            borderColor: '#C9B896',
+                            backgroundColor: 'rgba(201, 184, 150, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Post Karma',
+                            data: data.post_karma,
+                            borderColor: '#FF4500',
+                            borderDash: [5, 5],
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Comment Karma',
+                            data: data.comment_karma,
+                            borderColor: '#7193FF',
+                            borderDash: [5, 5],
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+        }
+        
+        // Handle preset dropdown changes
+        document.getElementById('karma-days').addEventListener('change', (e) => {
+            const value = e.target.value;
+            const customInputs = document.getElementById('custom-range-inputs');
+            const customBtn = document.getElementById('custom-range-btn');
+            
+            if (value === 'custom') {
+                // Show custom date inputs
+                customInputs.classList.remove('hidden');
+                customBtn.classList.remove('hidden');
+                
+                // Set default values (last 7 days to now)
+                const now = new Date();
+                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                
+                document.getElementById('date-to').value = now.toISOString().slice(0, 16);
+                document.getElementById('date-from').value = weekAgo.toISOString().slice(0, 16);
+            } else {
+                // Hide custom inputs and load preset range
+                customInputs.classList.add('hidden');
+                customBtn.classList.add('hidden');
+                loadKarmaChart(value);
+            }
+        });
+        
+        // Handle custom range button click
+        document.getElementById('custom-range-btn').addEventListener('click', () => {
+            const fromValue = document.getElementById('date-from').value;
+            const toValue = document.getElementById('date-to').value;
+            
+            if (fromValue && toValue) {
+                // Convert to ISO format for API
+                const fromISO = new Date(fromValue).toISOString();
+                const toISO = new Date(toValue).toISOString();
+                loadKarmaChart(null, fromISO, toISO);
+            } else {
+                alert('Please select both start and end dates');
+            }
+        });
+        
+        // Subreddit Chart
+        async function loadSubredditChart() {
+            const res = await fetch(`/api/subreddits/${username}`);
+            const data = await res.json();
+            
+            const ctx = document.getElementById('subredditChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.labels.map(l => 'r/' + l),
+                    datasets: [{
+                        data: data.counts,
+                        backgroundColor: [
+                            '#FF4500', '#7193FF', '#C9B896', '#46D160', '#FF6B6B',
+                            '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DFE6E9'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'right' }
+                    }
+                }
+            });
+        }
+        
+        // Karma Changes Chart
+        async function loadChangesChart() {
+            const res = await fetch(`/api/karma_changes/${username}?days=7`);
+            const data = await res.json();
+            
+            const ctx = document.getElementById('changesChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels.map(l => l.slice(5, 16)),
+                    datasets: [{
+                        label: 'Karma Change',
+                        data: data.changes,
+                        backgroundColor: data.changes.map(c => c >= 0 ? 'rgba(70, 209, 96, 0.7)' : 'rgba(255, 107, 107, 0.7)'),
+                        borderColor: data.changes.map(c => c >= 0 ? '#46D160' : '#FF6B6B'),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+        
+        // Posts Over Time Chart
+        async function loadPostsChart() {
+            const res = await fetch(`/api/posts/${username}`);
+            const data = await res.json();
+            
+            const ctx = document.getElementById('postsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Posts',
+                        data: data.counts,
+                        backgroundColor: 'rgba(255, 69, 0, 0.7)',
+                        borderColor: '#FF4500',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
+            });
+        }
+        
+        // Load all charts
+        loadKarmaChart(30);
+        loadSubredditChart();
+        loadChangesChart();
+        loadPostsChart();
+    </script>
+</body>
+</html>
