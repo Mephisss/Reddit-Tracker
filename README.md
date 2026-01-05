@@ -14,7 +14,6 @@ A self-hosted web application for monitoring Reddit accounts. Track karma change
 - **Analytics Dashboard** - Visualize posting patterns and subreddit distribution
 - **Image Backup** - Downloads and stores post images locally
 - **Scheduled Monitoring** - Configurable monitoring intervals
-- **Web Interface** - Clean, responsive dark-themed UI
 
 ## Screenshots
 
